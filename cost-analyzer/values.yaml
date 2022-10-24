@@ -29,7 +29,7 @@ global:
     remoteWriteService: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/<workspaceId>/api/v1/remote_write # The remote_write endpoint for the AMP workspace.
     sigv4:
       region: us-west-2
-      # access_key: ACCESS_KEY # AWS Access key 
+      # access_key: ACCESS_KEY # AWS Access key
       # secret_key: SECRET_KEY # AWS Secret key
       # role_arn: ROLE_ARN # AWS role arn
       # profile: PROFILE # AWS profile
@@ -199,6 +199,7 @@ oidc:
   authURL: "https://my.auth.server/authorize" # endpoint for login to auth server
   loginRedirectURL: "http://my.kubecost.url/model/oidc/authorize" # Kubecost url configured in provider for redirect after authentication
   discoveryURL: "https://my.auth.server/.well-known/openid-configuration" # url for OIDC endpoint discovery
+  hostedDomain: "example.com" # blocks access to the auth domain specified in the hd claim of the provider ID token
 
 # Adds an httpProxy as an environment variable. systemProxy.enabled must be `true`to have any effect.
 # Ref: https://www.oreilly.com/library/view/security-with-go/9781788627917/5ea6a02b-3d96-44b1-ad3c-6ab60fcbbe4f.xhtml
@@ -269,10 +270,13 @@ kubecostMetrics:
       annotations: {}
 
     # Service Monitor for Kubecost Metrics
-    serviceMonitor:
+    serviceMonitor: # the kubecost included prometheus uses scrapeConfigs and does not support service monitors. The following options assume an existing prometheus that supports serviceMonitors.
       enabled: false
       additionalLabels: {}
-
+      networkCosts:
+        enabled: false
+        scrapeTimeout: 10s
+        additionalLabels: {}
     ## PriorityClassName
     ## Ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass
     priorityClassName: []
@@ -319,6 +323,11 @@ kubecostModel:
   etlHourlyStoreDurationHours: 49
   # For deploying kubecost in a cluster that does not self-monitor
   etlReadOnlyMode: false
+
+  # Enables or disables the ContainerStats pipeline, used for quantile-based
+  # queries like for request sizing recommendations.
+  # containerStatsEnabled: true
+
   # max number of concurrent Prometheus queries
   maxQueryConcurrency: 5
   resources:
@@ -552,7 +561,7 @@ networkCosts:
   enabled: false
   podSecurityPolicy:
     enabled: false
-  image: gcr.io/kubecost1/kubecost-network-costs:v16.0
+  image: gcr.io/kubecost1/kubecost-network-costs:v16.2
   imagePullPolicy: Always
   updateStrategy:
     type: RollingUpdate
@@ -580,8 +589,8 @@ networkCosts:
       # In Zone contains a list of address/range that will be
       # classified as in zone.
       in-zone:
-        # Loopback
-        - "127.0.0.1"
+        # Loopback Addresses in "IANA IPv4 Special-Purpose Address Registry"
+        - "127.0.0.0/8"
         # IPv4 Link Local Address Space
         - "169.254.0.0/16"
         # Private Address Ranges in RFC-1918
@@ -660,6 +669,11 @@ kubecostDeployment:
   replicas: 1
   leaderFollower:
     enabled: false
+  # deploymentStrategy:
+  #   rollingUpdate:
+  #     maxSurge: 1
+  #     maxUnavailable: 1
+  #   type: RollingUpdate
 
 # Kubecost Cluster Controller for Right Sizing and Cluster Turndown
 clusterController:
@@ -682,9 +696,13 @@ reporting:
   # googleAnalyticsTag is only included in our Enterprise offering.
   # googleAnalyticsTag: G-XXXXXXXXX
 
-serviceMonitor:
+serviceMonitor: # the kubecost included prometheus uses scrapeConfigs and does not support service monitors. The following options assume an existing prometheus that supports serviceMonitors.
   enabled: false
   additionalLabels: {}
+  networkCosts:
+    enabled: false
+    scrapeTimeout: 10s
+    additionalLabels: {}
 
 prometheusRule:
   enabled: false
@@ -799,14 +817,14 @@ awsstore:
 #  projectID: "123456789"  # Also known as AccountID on AWS -- the current account/project that this instance of Kubecost is deployed on.
 #  gcpSecretName: gcp-secret # Name of a secret representing the gcp service key
 #  bigQueryBillingDataDataset: billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2
-#  labelMappingConfigs:  # names of k8s labels used to designate different allocation concepts
+#  labelMappingConfigs:  # names of k8s labels or annotations used to designate different allocation concepts
 #    enabled: true
 #    owner_label: "owner"
 #    team_label: "team"
 #    department_label: "dept"
 #    product_label: "product"
 #    environment_label: "env"
-#    namespace_external_label: "kubernetes_namespace" # external labels are used to map external cloud costs to kubernetes concepts
+#    namespace_external_label: "kubernetes_namespace" # external labels/tags are used to map external cloud costs to kubernetes concepts
 #    cluster_external_label: "kubernetes_cluster"
 #    controller_external_label: "kubernetes_controller"
 #    product_external_label: "kubernetes_label_app"

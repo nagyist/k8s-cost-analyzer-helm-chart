@@ -18,11 +18,19 @@ spec:
   selector:
     matchLabels:
 {{ include "cost-analyzer.selectorLabels" . | nindent 8}}
+{{- if .Values.kubecostDeployment }}
+{{- if .Values.kubecostDeployment.deploymentStrategy }}
+{{- with .Values.kubecostDeployment.deploymentStrategy }}
+  strategy: {{ toYaml . | nindent 4 }}
+{{- end }}
+{{- else }}
   strategy:
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 1
     type: RollingUpdate
+{{- end }}
+{{- end }}
   template:
     metadata:
       labels:
@@ -278,7 +286,7 @@ spec:
           {{- if .Values.sigV4Proxy.role_arn }}
           - --role-arn
           - {{ .Values.sigV4Proxy.role_arn }}
-          {{- end }}          
+          {{- end }}
           - --port
           - :{{ .Values.sigV4Proxy.port }}
           ports:
@@ -312,6 +320,13 @@ spec:
         {{- else }}
           imagePullPolicy: Always
         {{- end }}
+          ports:
+          - name: tcp-model
+            containerPort: 9003
+            protocol: TCP
+          - name: tcp-frontend
+            containerPort: 9090
+            protocol: TCP
           resources:
 {{ toYaml .Values.kubecostModel.resources | indent 12 }}
           readinessProbe:
@@ -434,6 +449,10 @@ spec:
             - name: APP_CONFIGMAP_NAME
               value: {{ .Values.appConfigmapName }}
             {{- end }}
+            {{- if .Values.kubecostModel.softMemoryLimit }}
+            - name: GOMEMLIMIT
+              value: {{ .Values.kubecostModel.softMemoryLimit }}
+            {{- end }}
             {{- if .Values.assetReportConfigmapName }}
             - name: ASSET_REPORT_CONFIGMAP_NAME
               value: {{ .Values.assetReportConfigmapName }}
@@ -463,8 +482,12 @@ spec:
                   key: prometheus-server-endpoint
             - name: CLOUD_PROVIDER_API_KEY
               value: "AIzaSyDXQPG_MHUEy9neR7stolq6l0ujXmjJlvk" # The GCP Pricing API requires a key.
+            {{- if .Values.kubecostProductConfigs }}
+            {{- if .Values.kubecostProductConfigs.gcpSecretName }}
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /var/configs/key.json
+            {{- end }}
+            {{- end }}
             - name: CONFIG_PATH
               value: /var/configs/
             - name: DB_PATH
@@ -650,6 +673,8 @@ spec:
               value: {{ (quote .Values.kubecostModel.etlAssetReconciliationEnabled) | default (quote true) }}
             - name: ETL_USE_UNBLENDED_COST
               value: {{ (quote .Values.kubecostModel.etlUseUnblendedClost) | default (quote false) }}
+            - name: CONTAINER_STATS_ENABLED
+              value: {{ (quote .Values.kubecostModel.containerStatsEnabled) | default (quote true) }}
             - name: RECONCILE_NETWORK
               value: {{ (quote .Values.kubecostModel.reconcileNetwork) | default (quote true) }}
             {{- if .Values.systemProxy.enabled }}
