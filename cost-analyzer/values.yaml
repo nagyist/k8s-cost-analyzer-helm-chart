@@ -698,6 +698,7 @@ reporting:
 
 serviceMonitor: # the kubecost included prometheus uses scrapeConfigs and does not support service monitors. The following options assume an existing prometheus that supports serviceMonitors.
   enabled: false
+  scrapeTimeout: 10s
   additionalLabels: {}
   networkCosts:
     enabled: false
@@ -760,12 +761,12 @@ awsstore:
 
 federatedETL:
   # federatedCluster indicates whether this cluster should push data to the Federated store
-  federatedCluster: false 
+  federatedCluster: false
   # primaryCluster indicates whether this cluster should load data from the combined section of the Federated store
-  primaryCluster: false 
+  primaryCluster: false
   # redirectS3Backup changes the dir of S3 backup to the Federated combined store, for using Thanos-federated data in the Federated ETL
   # Note S3 backup should be enabled separately for this.
-  redirectS3Backup: false 
+  redirectS3Backup: false
   # useExistingS3Config will attempt to use existing object-store.yaml configs for S3 backup/Thanos as config for the Federated store
   useExistingS3Config: false
   federator:
