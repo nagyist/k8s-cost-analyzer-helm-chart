@@ -272,6 +272,7 @@ kubecostMetrics:
     # Service Monitor for Kubecost Metrics
     serviceMonitor: # the kubecost included prometheus uses scrapeConfigs and does not support service monitors. The following options assume an existing prometheus that supports serviceMonitors.
       enabled: false
+      scrapeTimeout: 10s
       additionalLabels: {}
       networkCosts:
         enabled: false

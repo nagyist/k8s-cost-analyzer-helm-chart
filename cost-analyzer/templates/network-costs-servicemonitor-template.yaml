@@ -13,7 +13,7 @@ spec:
     - port: metrics
       honorLabels: true
       interval: 1m
-      scrapeTimeout: {{ .Values.serviceMonitor.networkCosts.scrapeTimeout }}
+      scrapeTimeout: {{default 10 .Values.serviceMonitor.networkCosts.scrapeTimeout }}
       path: /metrics
       scheme: http
   namespaceSelector:
