@@ -22,6 +22,7 @@ global:
       scc:
         nodeExporter: false  # Creates an SCC for Prometheus Node Exporter. This requires Node Exporter be enabled.
         networkCosts: false  # Creates an SCC for Kubecost network-costs. This requires network-costs be enabled.
+        cloudController: false  # Creates an SCC for Kubecost Cloud Controller. This requires cloud-controller be enabled.
       # When OpenShift is enabled, the following securityContext will be applied to all resources unless they define their own.
       securityContext:
         runAsNonRoot: true
@@ -33,3 +34,5 @@ global:
 # prometheus:
 #   nodeExporter:
 #     enabled: true  # Enable Prometheus Node Exporter.
+# cloudController:
+#   enabled: true  # Enable the Cloud Controller.
