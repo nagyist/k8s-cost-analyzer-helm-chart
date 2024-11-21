@@ -2054,7 +2054,7 @@ grafana:
   sidecar:
     image:
       repository: ghcr.io/kiwigrid/k8s-sidecar
-      tag: v1.28.0
+      tag: 1.28.0
       pullPolicy: IfNotPresent
     resources: {}
     dashboards:
