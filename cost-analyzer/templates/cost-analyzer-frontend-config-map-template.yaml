@@ -51,16 +51,6 @@ data:
         text/x-component
         text/x-cross-domain-policy;
 
-    upstream api {
-{{- if .Values.kubecostFrontend.useDefaultFqdn }}
-        server {{ $serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:9001;
-{{- else if (.Values.kubecostFrontend.api).fqdn }}
-        server {{ .Values.kubecostFrontend.api.fqdn }};
-{{- else }}
-        server {{ $serviceName }}.{{ .Release.Namespace }}:9001;
-{{- end }}
-    }
-
     upstream model {
 {{- if .Values.kubecostFrontend.useDefaultFqdn }}
         server {{ $serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:9003;
