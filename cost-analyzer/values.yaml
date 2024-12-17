@@ -485,8 +485,6 @@ kubecostFrontend:
 
   # set to true to set all upstreams to use <service>.<namespace>.svc.cluster.local instead of just <service>.<namespace>
   useDefaultFqdn: false
-#  api:
-#    fqdn: kubecost-api.kubecost.svc.cluster.local:9001
 #  model:
 #    fqdn: kubecost-model.kubecost.svc.cluster.local:9003
 #  forecasting:
