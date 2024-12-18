@@ -25,6 +25,7 @@ volumes:
   - hostPath
   - projected
   - configMap
+  - secret
 users:
   - system:serviceaccount:{{ .Release.Namespace }}:{{ template "kubecost.clusterControllerName" . }}
 {{- end }}
