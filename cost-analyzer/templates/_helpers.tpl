@@ -1162,6 +1162,10 @@ Begin Kubecost 2.0 templates
     {{- end }}
     {{- end }}
     {{- end }}
+    {{- if .Values.global.integrations.turbonomic.enabled }}
+    - name: TURBONOMIC_ENABLED
+      value: "true"
+    {{- end }}
     {{- if .Values.saml }}
     {{- if .Values.saml.enabled }}
     - name: SAML_ENABLED
@@ -1198,10 +1202,6 @@ Begin Kubecost 2.0 templates
     - name: SAML_RESPONSE_ENCRYPTED
       value: "true"
     {{- end}}
-    {{- if .Values.global.integrations.turbonomic.enabled }}
-    - name: TURBONOMIC_ENABLED
-      value: "true"
-    {{- end }}
     {{- end }}
     {{- end }}
 {{- end }}
@@ -1445,6 +1445,16 @@ for more information
 {{- if ((.Values.kubecostProductConfigs).azureStorageContainer) }}
 {{- fail (include "azureCloudIntegrationJSON" .) }}
 {{- end }}
+{{- end }}
+
+{{- define "caCertsSecretConfigCheck" }}
+  {{- if .Values.global.updateCaTrust.enabled }}
+    {{- if and .Values.global.updateCaTrust.caCertsSecret .Values.global.updateCaTrust.caCertsConfig }}
+      {{- fail "Both caCertsSecret and caCertsConfig are defined. Please specify only one." }}
+    {{- else if and (not .Values.global.updateCaTrust.caCertsSecret) (not .Values.global.updateCaTrust.caCertsConfig) }}
+      {{- fail "Neither caCertsSecret nor caCertsConfig is defined, but updateCaTrust is enabled. Please specify one." }}
+    {{- end }}
+  {{- end }}
 {{- end }}
 
 {{- define "clusterControllerEnabled" }}
