@@ -253,16 +253,17 @@ global:
         annotations: {}  # Add annotations to the Route.
         # host: kubecost.apps.okd4.example.com  # Add a custom host for your Route.
 
-        # OPTIONAL. The following configs only to be enabled when using a Prometheus instance already installed in the cluster.
-        createMonitoringClusterRoleBinding: false  # Create a ClusterRoleBinding to grant the Kubecost serviceaccount access to query Prometheus.
-        createMonitoringResourceReaderRoleBinding: false  # Create a Role and Role Binding to allow Prometheus to list and watch Kubecost resources.
-        monitoringServiceAccountName: prometheus-k8s  # Name of the Prometheus serviceaccount to bind to the Resource Reader Role Binding.
-        monitoringServiceAccountNamespace: openshift-monitoring  # Namespace of the Prometheus serviceaccount to bind to the Resource Reader Role Binding.
+      # OPTIONAL. The following configs only to be enabled when using a Prometheus instance already installed in the cluster.
+      createMonitoringClusterRoleBinding: false  # Create a ClusterRoleBinding to grant the Kubecost serviceaccount access to query Prometheus.
+      createMonitoringResourceReaderRoleBinding: false  # Create a Role and Role Binding to allow Prometheus to list and watch Kubecost resources.
+      monitoringServiceAccountName: prometheus-k8s  # Name of the Prometheus serviceaccount to bind to the Resource Reader Role Binding.
+      monitoringServiceAccountNamespace: openshift-monitoring  # Namespace of the Prometheus serviceaccount to bind to the Resource Reader Role Binding.
 
       # Create Security Context Constraint resources for the DaemonSets requiring additional privileges.
       scc:
         nodeExporter: false  # Creates an SCC for Prometheus Node Exporter. This requires Node Exporter be enabled.
         networkCosts: false  # Creates an SCC for Kubecost network-costs. This requires network-costs be enabled.
+        clusterController: false  # Creates an SCC for Kubecost Cluster Controller. This requires clusterController be enabled.
       # When OpenShift is enabled, the following securityContext will be applied to all resources unless they define their own.
       securityContext:
         runAsNonRoot: true
@@ -485,8 +486,6 @@ kubecostFrontend:
 
   # set to true to set all upstreams to use <service>.<namespace>.svc.cluster.local instead of just <service>.<namespace>
   useDefaultFqdn: false
-#  api:
-#    fqdn: kubecost-api.kubecost.svc.cluster.local:9001
 #  model:
 #    fqdn: kubecost-model.kubecost.svc.cluster.local:9003
 #  forecasting:
@@ -1089,7 +1088,7 @@ prometheus:
       name: configmap-reload
       image:
         repository: quay.io/prometheus-operator/prometheus-config-reloader
-        tag: v0.78.2
+        tag: v0.79.2
         pullPolicy: IfNotPresent
       extraArgs: {}
       extraVolumeDirs: []
@@ -1102,7 +1101,7 @@ prometheus:
       name: configmap-reload
       image:
         repository: quay.io/prometheus-operator/prometheus-config-reloader
-        tag: v0.78.2
+        tag: v0.79.2
         pullPolicy: IfNotPresent
       extraArgs: {}
       extraVolumeDirs: []
@@ -1823,7 +1822,7 @@ clusterController:
   enabled: false
   image:
     repository: gcr.io/kubecost1/cluster-controller
-    tag: v0.16.10
+    tag: v0.16.11
   imagePullPolicy: IfNotPresent
   priorityClassName: ""
   tolerations: []
@@ -2032,7 +2031,7 @@ grafana:
     failureThreshold: 10
   image:
     repository: grafana/grafana
-    tag: 11.3.1
+    tag: 11.4.0
     pullPolicy: IfNotPresent
     # pullSecrets:
   securityContext: {}
@@ -2078,7 +2077,7 @@ grafana:
   sidecar:
     image:
       repository: ghcr.io/kiwigrid/k8s-sidecar
-      tag: 1.28.1
+      tag: 1.28.4
       pullPolicy: IfNotPresent
     resources: {}
     dashboards:
