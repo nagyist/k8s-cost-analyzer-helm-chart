@@ -1038,7 +1038,7 @@ prometheus:
     name: alertmanager
     image:
       repository: quay.io/prometheus/alertmanager
-      tag: v0.27.0
+      tag: v0.28.0
       pullPolicy: IfNotPresent
     priorityClassName: ""
     extraArgs: {}
@@ -1860,16 +1860,20 @@ clusterController:
   enabled: false
   image:
     repository: gcr.io/kubecost1/cluster-controller
-    tag: v0.16.11
+    tag: v0.16.12
   imagePullPolicy: IfNotPresent
   priorityClassName: ""
   tolerations: []
-
-  ## Annotations to be added for cluster controller template
   annotations: {}
+  labels: {}
+  securityContext: {}
   resources: {}
   affinity: {}
   nodeSelector: {}
+  primaryKubecostURL: ""  # URL for secondary clusters to connect to primary Kubecost (ex: https://kubecost.myorganization.com)
+  kubecostAPIKey: ""  # API Key for secondary clusters to authenticate with primary
+  createClusterControllerSecret: true  # disable if you want to use your own secret manager
+  secretName: controller-secrets
   actionConfigs:
     # this configures the Kubecost Cluster Turndown action
     # for more details, see documentation at https://github.com/kubecost/cluster-turndown/tree/develop?tab=readme-ov-file#setting-a-turndown-schedule
@@ -2069,7 +2073,7 @@ grafana:
     failureThreshold: 10
   image:
     repository: grafana/grafana
-    tag: 11.4.0
+    tag: 11.5.1
     pullPolicy: IfNotPresent
     # pullSecrets:
   securityContext: {}
@@ -2115,7 +2119,7 @@ grafana:
   sidecar:
     image:
       repository: ghcr.io/kiwigrid/k8s-sidecar
-      tag: 1.29.0
+      tag: 1.30.0
       pullPolicy: IfNotPresent
     resources: {}
     dashboards:
