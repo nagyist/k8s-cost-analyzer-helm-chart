@@ -1,17 +1,26 @@
 {{- if .Values.etlUtils.enabled }}
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "etlUtils.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "etlUtils.commonLabels" . | nindent 4 }}
+    {{- include "etlUtils.commonLabels" . | nindent 4 }}
+    {{- with .Values.global.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+  {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.etlUtils.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{ include "etlUtils.selectorLabels" . | nindent 6 }}
+      {{- include "etlUtils.selectorLabels" . | nindent 6 }}
   strategy:
     type: Recreate
   template:
@@ -20,6 +29,13 @@ spec:
         app.kubernetes.io/name: {{ template "etlUtils.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app: {{ template "etlUtils.name" . }}
+        {{- with .Values.global.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.global.podAnnotations}}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       restartPolicy: Always
       volumes:
@@ -29,24 +45,24 @@ spec:
             defaultMode: 420
             secretName: {{ .Values.etlUtils.thanosSourceBucketSecret }}
         {{- end }}
-        {{- if .Values.kubecostModel.federatedStorageConfigSecret }}
+        {{- if or .Values.kubecostModel.federatedStorageConfigSecret .Values.kubecostModel.federatedStorageConfig}}
         - name: federated-storage-config
           secret:
             defaultMode: 420
-            secretName: {{ .Values.kubecostModel.federatedStorageConfigSecret }}
+            secretName: {{ .Values.kubecostModel.federatedStorageConfigSecret | default "federated-store" }}
         {{- end }}
       serviceAccountName: {{ template "cost-analyzer.serviceAccountName" . }}
       containers:
         - name: {{ template "etlUtils.name" . }}
           {{- if .Values.kubecostModel }}
-          {{- if .Values.kubecostModel.openSourceOnly }}
-          {{- fail "ETL Utils cannot be used with open source only" }}
-          {{- else if .Values.etlUtils.fullImageName }}
+          {{- if .Values.etlUtils.fullImageName }}
           image: {{ .Values.etlUtils.fullImageName }}
           {{- else if .Values.kubecostModel.fullImageName }}
           image: {{ .Values.kubecostModel.fullImageName }}
           {{- else if .Values.imageVersion }}
           image: {{ .Values.kubecostModel.image }}:{{ .Values.imageVersion }}
+          {{- else if eq "development" .Chart.AppVersion }}
+          image: gcr.io/kubecost1/cost-model-nightly:latest
           {{- else }}
           image: {{ .Values.kubecostModel.image }}:prod-{{ $.Chart.AppVersion }}
           {{ end }}
@@ -94,7 +110,9 @@ spec:
 
     {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
-      {{ toYaml .Values.imagePullSecrets | indent 2 }}
+      {{- range $.Values.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
     {{- end }}
       {{- with .Values.etlUtils.nodeSelector }}
       nodeSelector:

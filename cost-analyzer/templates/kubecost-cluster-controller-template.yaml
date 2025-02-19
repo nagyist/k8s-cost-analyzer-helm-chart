@@ -1,5 +1,4 @@
-{{- if .Values.clusterController }}
-{{- if .Values.clusterController.enabled }}
+{{- if (.Values.clusterController).enabled }}
 {{- $serviceName := include "cost-analyzer.serviceName" . -}}
 apiVersion: v1
 kind: ServiceAccount
@@ -7,7 +6,7 @@ metadata:
   name: {{ template "kubecost.clusterControllerName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
 ---
 #
 # NOTE: 
@@ -19,7 +18,7 @@ kind: ClusterRole
 metadata:
   name: {{ template "kubecost.clusterControllerName" . }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
 rules:
   - apiGroups:
       - kubecost.com
@@ -97,20 +96,6 @@ rules:
       - create
       - update
   - apiGroups:
-      - extensions
-    resources:
-      - daemonsets
-      - deployments
-      - replicasets
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - patch
-      - update
-      - delete
-  - apiGroups:
       - apps
     resources:
       - statefulsets
@@ -187,7 +172,7 @@ kind: ClusterRoleBinding
 metadata:
   name: {{ template "kubecost.clusterControllerName" . }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -197,29 +182,26 @@ subjects:
     name: {{ template "kubecost.clusterControllerName" . }}
     namespace: {{ .Release.Namespace }}
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cluster-controller-continuous-cluster-sizing
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cluster-controller-nsturndown-config
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "kubecost.clusterControllerName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- if .Values.global.additionalLabels }}
+    {{- toYaml .Values.global.additionalLabels | nindent 4 }}
+    {{- end }}
+    {{- if .Values.clusterController.labels }}
+    {{- toYaml .Values.clusterController.labels | nindent 4 }}
+    {{- end }}
+  annotations:
+  {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.clusterController.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   strategy:
     rollingUpdate:
@@ -233,14 +215,46 @@ spec:
     metadata:
       labels:
         app: {{ template "kubecost.clusterControllerName" . }}
+        {{- if .Values.global.additionalLabels }}
+        {{- toYaml .Values.global.additionalLabels | nindent 8 }}
+        {{- end }}
+        {{- if .Values.clusterController.labels }}
+        {{- toYaml .Values.clusterController.labels | nindent 8 }}
+        {{- end }}
+      {{- with .Values.global.podAnnotations}}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- if .Values.global.platforms.openshift.enabled }}
+      securityContext:
+      {{- toYaml .Values.global.platforms.openshift.securityContext | nindent 8 }}
+      {{- else if .Values.global.securityContext }}
+      securityContext:
+      {{- toYaml .Values.global.securityContext | nindent 8 }}
+      {{- else }}
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      {{- end }}
       {{- if .Values.clusterController.priorityClassName }}
       priorityClassName: "{{ .Values.clusterController.priorityClassName }}"
       {{- end }}
       containers:
       - name: {{ template "kubecost.clusterControllerName" . }}
+        {{- if eq (typeOf .Values.clusterController.image) "string" }}
         image: {{ .Values.clusterController.image }}
+        {{- else }}
+        image: {{ .Values.clusterController.image.repository }}:{{ .Values.clusterController.image.tag }}
+        {{- end}}
         imagePullPolicy: {{ .Values.clusterController.imagePullPolicy }}
+        securityContext:
+        {{- if .Values.clusterController.securityContext }}
+          {{- toYaml .Values.clusterController.securityContext | nindent 10 -}}
+        {{- else if .Values.global.containerSecurityContext }}
+          {{- toYaml .Values.global.containerSecurityContext | nindent 10 -}}
+        {{- end }}
         volumeMounts:
         - name: cluster-controller-keys
           mountPath: /var/keys
@@ -268,19 +282,57 @@ spec:
         - name: CC_LOG_LEVEL
           value: {{ .Values.clusterController.logLevel | default "info" }}
         - name: CC_KUBESCALER_COST_MODEL_PATH
+          {{- if .Values.clusterController.primaryKubecostURL }}
+          value: {{ .Values.clusterController.primaryKubecostURL }}/model
+          {{- else }}
           value: http://{{ $serviceName }}.{{ .Release.Namespace }}:{{ .Values.service.targetPort | default 9090 }}/model
+          {{- end }}
         - name: CC_CCL_COST_MODEL_PATH
+          {{- if .Values.clusterController.primaryKubecostURL }}
+          value: {{ .Values.clusterController.primaryKubecostURL }}/model
+          {{- else }}
           value: http://{{ $serviceName }}.{{ .Release.Namespace }}:{{ .Values.service.targetPort | default 9090 }}/model
+          {{- end }}
+        {{- if .Values.clusterController.kubecostAPIKey }}
+        - name: KUBECOST_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.clusterController.secretName }}
+              key: kubecostAPIKey
+        {{- end }}
         {{- if .Values.clusterController.kubescaler }}
         - name: CC_KUBESCALER_DEFAULT_RESIZE_ALL
           value: {{ .Values.clusterController.kubescaler.defaultResizeAll | default "false" | quote }}
+        {{- end }}
+        {{- if .Values.clusterController.extraEnv -}}
+        {{ toYaml .Values.clusterController.extraEnv | nindent 8 }}
         {{- end }}
         ports:
         - name: http-server
           containerPort: 9731
           hostPort: 9731
+        resources:
+          {{- toYaml .Values.clusterController.resources | nindent 12 }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range $.Values.imagePullSecrets }}
+        - name: {{ .name }}
+        {{- end }}
+      {{- end }}
       serviceAccount: {{ template "kubecost.clusterControllerName" . }}
       serviceAccountName: {{ template "kubecost.clusterControllerName" . }}
+      {{- with .Values.clusterController.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clusterController.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clusterController.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
       - name: cluster-controller-keys
         secret:
@@ -297,7 +349,7 @@ metadata:
   name: {{ template "kubecost.clusterControllerName" . }}-service
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
 spec:
   type: ClusterIP
   ports:
@@ -308,85 +360,16 @@ spec:
   selector:
     app: {{ template "kubecost.clusterControllerName" . }}
 ---
-# TurndownSchedule Custom Resource Definition for persistence
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
+{{- if and .Values.clusterController.createClusterControllerSecret .Values.clusterController.kubecostAPIKey }}
+apiVersion: v1
+kind: Secret
+type: Opaque
 metadata:
-  name: turndownschedules.kubecost.com
+  name: {{ .Values.clusterController.secretName }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
-spec:
-  group: kubecost.com
-  names:
-    kind: TurndownSchedule
-    singular: turndownschedule
-    plural: turndownschedules
-    shortNames:
-    - td
-    - tds
-  scope: Cluster
-  versions:
-    - name: v1alpha1
-      served: true
-      storage: true
-      subresources:
-        status: {}
-      schema:
-        openAPIV3Schema:
-          type: object
-          properties:
-            spec:
-              type: object
-              properties:
-                start:
-                  type: string
-                  format: date-time
-                end:
-                  type: string
-                  format: date-time
-                repeat:
-                  type: string
-                  enum: [none, daily, weekly]
-            status:
-              type: object
-              properties:
-                state:
-                  type: string
-                lastUpdated:
-                  format: date-time
-                  type: string
-                current:
-                  type: string
-                scaleDownId:
-                  type: string
-                nextScaleDownTime:
-                  format: date-time
-                  type: string
-                scaleDownMetadata:
-                  additionalProperties:
-                    type: string
-                  type: object
-                scaleUpID:
-                  type: string
-                nextScaleUpTime:
-                  format: date-time
-                  type: string
-                scaleUpMetadata:
-                  additionalProperties:
-                    type: string
-                  type: object
-      additionalPrinterColumns:
-      - name: State
-        type: string
-        description: The state of the turndownschedule
-        jsonPath: .status.state
-      - name: Next Turndown
-        type: string
-        description: The next turndown date-time
-        jsonPath: .status.nextScaleDownTime
-      - name: Next Turn Up
-        type: string
-        description: The next turn up date-time
-        jsonPath: .status.nextScaleUpTime
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
+data:
+  kubecostAPIKey: {{ .Values.clusterController.kubecostAPIKey | b64enc }}
 {{- end }}
 {{- end }}

@@ -4,7 +4,7 @@ metadata:
   name: {{ template "cost-analyzer.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
 data:
   {{- if .Values.global.prometheus.enabled }}
   {{- if .Values.global.zone }}
@@ -19,6 +19,8 @@ data:
     prometheus-server-endpoint: {{ .Values.global.gmp.prometheusServerEndpoint }}
   {{- else if .Values.global.amp.enabled }}
     prometheus-server-endpoint: {{ .Values.global.amp.prometheusServerEndpoint }}
+  {{- else if .Values.global.ammsp.enabled }}
+    prometheus-server-endpoint: {{ .Values.global.ammsp.prometheusServerEndpoint }}
   {{- else if .Values.global.prometheus.enabled }}
   {{- if .Values.global.zone }}
     prometheus-server-endpoint: http://{{ template "cost-analyzer.prometheus.server.name" . }}.{{ .Release.Namespace  }}.svc.{{ .Values.global.zone }}

@@ -35,8 +35,6 @@ The following table lists commonly used configuration parameters for the Kubecos
 | Parameter                                                                          | Description                                                                                                                                                  | Default                                               |
 |------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
 | `global.prometheus.enabled`                                                        | If false, use an existing Prometheus install. [More info](http://docs.kubecost.com/custom-prom).                                                             | `true`                                                |
-| `prometheus.kube-state-metrics.disabled`                                           | If false, deploy [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) for Kubernetes metrics                                               | `false`                                               |
-| `prometheus.kube-state-metrics.resources`                                          | Set kube-state-metrics resource requests and limits.                                                                                                         | `{}`                                                  |
 | `prometheus.server.persistentVolume.enabled`                                       | If true, Prometheus server will create a Persistent Volume Claim.                                                                                            | `true`                                                |
 | `prometheus.server.persistentVolume.size`                                          | Prometheus server data Persistent Volume size. Default set to retain ~6000 samples per second for 15 days.                                                   | `32Gi`                                                |
 | `prometheus.server.retention`                                                      | Determines when to remove old data.                                                                                                                          | `15d`                                                 |
@@ -54,14 +52,8 @@ The following table lists commonly used configuration parameters for the Kubecos
 | `ingress.paths`                                                                    | Ingress paths                                                                                                                                                | `["/"]`                                               |
 | `ingress.hosts`                                                                    | Ingress hostnames                                                                                                                                            | `[cost-analyzer.local]`                               |
 | `ingress.tls`                                                                      | Ingress TLS configuration (YAML)                                                                                                                             | `[]`                                                  |
-| `networkPolicy.enabled`                                                            | If true, create a NetworkPolicy to deny egress                                                                                                               | `false`                                               |
-| `networkPolicy.costAnalyzer.enabled`                                               | If true, create a newtork policy for cost-analzyer                                                                                                           | `false`                                               |
-| `networkPolicy.costAnalyzer.annotations`                                           | Annotations to be added to the network policy                                                                                                                | `{}`                                                  |
-| `networkPolicy.costAnalyzer.additionalLabels`                                      | Additional labels to be added to the network policy                                                                                                          | `{}`                                                  |
-| `networkPolicy.costAnalyzer.ingressRules`                                          | A list of network policy ingress rules                                                                                                                       | `null`                                                |
-| `networkPolicy.costAnalyzer.egressRules`                                           | A list of network policy egress rules                                                                                                                        | `null`                                                |
 | `networkCosts.enabled`                                                             | If true, collect network allocation metrics [More info](http://docs.kubecost.com/network-allocation)                                                         | `false`                                               |
-| `networkCosts.podMonitor.enabled`                                                  | If true, a [PodMonitor](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#podmonitor) for the network-cost daemonset is created | `false`                                               |
+| `networkCosts.podMonitor.enabled`                                                  | If true, a PodMonitor for the network-cost daemonset is created | `false`                                               |
 | `serviceMonitor.enabled`                                                           | Set this to `true` to create ServiceMonitor for Prometheus operator                                                                                          | `false`                                               |
 | `serviceMonitor.additionalLabels`                                                  | Additional labels that can be used so ServiceMonitor will be discovered by Prometheus                                                                        | `{}`                                                  |
 | `serviceMonitor.relabelings`                                                       | Sets Prometheus metric_relabel_configs on the scrape job                                                                                                     | `[]`                                                  |
@@ -69,6 +61,8 @@ The following table lists commonly used configuration parameters for the Kubecos
 | `prometheusRule.enabled`                                                           | Set this to `true` to create PrometheusRule for Prometheus operator                                                                                          | `false`                                               |
 | `prometheusRule.additionalLabels`                                                  | Additional labels that can be used so PrometheusRule will be discovered by Prometheus                                                                        | `{}`                                                  |
 | `grafana.resources`                                                                | Grafana resource requests and limits.                                                                                                                        | `{}`                                                  |
+| `grafana.serviceAccount.create`                                                    | If true, create a Service Account for Grafana.                                                                                                               | `true`                                                |
+| `grafana.serviceAccount.name`                                                      | Grafana Service Account name.                                                                                                                                | `{}`                                                  |
 | `grafana.sidecar.datasources.defaultDatasourceEnabled`                             | Set this to `false` to disable creation of Prometheus datasource in Grafana                                                                                  | `true`                                                |
 | `serviceAccount.create`                                                            | Set this to `false` if you want to create the service account `kubecost-cost-analyzer` on your own                                                           | `true`                                                |
 | `tolerations`                                                                      | node taints to tolerate                                                                                                                                      | `[]`                                                  |
@@ -81,14 +75,23 @@ The following table lists commonly used configuration parameters for the Kubecos
 
 ## Adjusting Log Output
 
-The log output can be customized during deployment by using the `LOG_LEVEL` and/or `LOG_FORMAT` environment variables.
+You can adjust the log output by using the `logLevel` Helm value and/or the `LOG_FORMAT` environment variable.
 
 ### Adjusting Log Level
 
-Adjusting the log level increases or decreases the level of verbosity written to the logs. To set the log level to `trace`, the following flag can be added to the `helm` command.
+Adjusting the log level increases or decreases the level of verbosity written to the logs. The `logLevel` property accepts the following values:
+
+* `trace`
+* `debug`
+* `info`
+* `warn`
+* `error`
+* `fatal`
+
+For example, to set the log level to `debug`, add the following flag to the Helm command:
 
 ```sh
---set 'kubecostModel.extraEnv[0].name=LOG_LEVEL,kubecostModel.extraEnv[0].value=trace'
+--set 'kubecostModel.logLevel=debug'
 ```
 
 ### Adjusting Log Format
@@ -113,43 +116,4 @@ kind create cluster --image kindest/node:v1.25.11@sha256:227fa11ce74ea76a0474eee
 ```shell
 ct install  --chart-dirs="." --charts="."
 ```
-
-- perform ct StatefulSet execution
-
-```shell
-# create multiple nodes kind config
-cat > kind-config.yaml <<EOF
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-- role: worker
-- role: worker
-EOF
-# creaet kind cluster with kind config
-kind create cluster --name kubecost-statefulset --config kind-config.yaml --image kindest/node:v1.25.11@sha256:227fa11ce74ea76a0474eeefb84cb75d8dad1b08638371ecf0e86259b35be0c8
-# deploy an object storage for our testing purpose (https://min.io/docs/minio/kubernetes/upstream/index.html)
-curl --silent https://raw.githubusercontent.com/minio/docs/master/source/extra/examples/minio-dev.yaml  | sed -e "s/kubealpha.local/kubecost-statefulset-worker/" -e "s%minio server /data%mkdir -p /data/kubecost; minio server /data%" | kubectl apply -f -
-# create a headless service to the minio S3 API port
-kubectl create service clusterip -n minio-dev minio --tcp=9000:9000 --clusterip="None"
-# create our testing namespace
-kubectl create namespace kubecost-statefulset
-# create the bucket config 
-cat > etlBucketConfigSecret.yaml <<EOF
-type: s3
-config:
-  bucket: kubecost
-  endpoint: minio.minio-dev:9000
-  insecure: true
-  access_key: minioadmin
-  secret_key: minioadmin
-EOF
-# create the secret with the object-store.yaml
-kubectl create secret generic -n kubecost-statefulset object-store --from-file=object-store.yaml=etlBucketConfigSecret.yaml
-# start our chart-testing
-ct install --namespace kubecost-statefulset --chart-dirs="." --charts="." --helm-extra-set-args="--set=global.prometheus.enabled=true --set=global.grafana.enabled=true --set=kubecostDeployment.leaderFollower.enabled=true --set=kubecostDeployment.statefulSet.enabled=true --set=kubecostDeployment.replicas=2 --set=kubecostModel.etlBucketConfigSecret=object-store"
-# cleanup
-kind delete cluster --name kubecost-statefulset 
-```
-
 

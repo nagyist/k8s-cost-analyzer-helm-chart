@@ -6,7 +6,17 @@ metadata:
   name: {{ template "cost-analyzer.fullname" . }}-awsstore
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- with .Values.global.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+  {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.awsstore.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   selector:
     matchLabels:
@@ -20,6 +30,9 @@ spec:
     metadata:
       labels:
         app: awsstore
+        {{- with .Values.global.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.global.podAnnotations}}
       annotations:
         {{- toYaml . | nindent 8 }}
@@ -28,6 +41,10 @@ spec:
       serviceAccountName: awsstore-serviceaccount
       {{- if .Values.awsstore.priorityClassName }}
       priorityClassName: "{{ .Values.awsstore.priorityClassName }}"
+      {{- end }}
+      {{- with .Values.awsstore.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - image: {{ .Values.awsstore.imageNameAndVersion }}

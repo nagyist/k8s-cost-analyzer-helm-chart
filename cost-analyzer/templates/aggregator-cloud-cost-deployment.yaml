@@ -1,17 +1,36 @@
-{{- if .Values.kubecostAggregator.cloudCost.enabled }}
+{{- if eq (include "aggregator.deployMethod" .) "statefulset" }}
 
+{{/*
+  A cloud integration secret is required for cloud cost to function as a dedicated pod.
+  UI based configuration is not supported for cloud cost with aggregator.
+*/}}
+{{- if ((.Values.kubecostAggregator).cloudCost).enabled }}
+{{- if not ( or (.Values.kubecostProductConfigs).cloudIntegrationSecret (.Values.kubecostProductConfigs).cloudIntegrationJSON ((.Values.kubecostProductConfigs).athenaBucketName)) }}
+{{- fail "\n\nA cloud-integration secret is required when using the aggregator statefulset and cloudCost is enabled." }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "cloudCost.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cloudCost.commonLabels" . | nindent 4 }}
+    {{- include "cloudCost.commonLabels" . | nindent 4 }}
+    {{- with .Values.global.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+  {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.kubecostAggregator.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{ include "cloudCost.selectorLabels" . | nindent 6 }}
+      {{- include "cloudCost.selectorLabels" . | nindent 6 }}
   strategy:
     type: Recreate
   template:
@@ -20,108 +39,156 @@ spec:
         app.kubernetes.io/name: cloud-cost
         app.kubernetes.io/instance: {{ .Release.Name }}
         app: cloud-cost
+        {{- with .Values.global.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.global.podAnnotations}}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/configs: {{ include "configsChecksum" . }}
     spec:
+      {{- if .Values.global.platforms.openshift.enabled }}
+      securityContext:
+      {{- toYaml .Values.global.platforms.openshift.securityContext | nindent 8 }}
+      {{- else if .Values.global.securityContext }}
+      securityContext:
+      {{- toYaml .Values.global.securityContext | nindent 8 }}
+      {{- else }}
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      {{- end }}
       restartPolicy: Always
       serviceAccountName: {{ template "cloudCost.serviceAccountName" . }}
       volumes:
-        {{- if .Values.kubecostModel.etlBucketConfigSecret }}
-        - name: etl-bucket-config
-          secret:
-            defaultMode: 420
-            secretName: {{ .Values.kubecostModel.etlBucketConfigSecret }}
-        {{- end }}
-        {{- if .Values.kubecostModel.federatedStorageConfigSecret }}
+        {{- if or .Values.kubecostModel.federatedStorageConfigSecret .Values.kubecostModel.federatedStorageConfig }}
         - name: federated-storage-config
           secret:
             defaultMode: 420
+            {{- if .Values.kubecostModel.federatedStorageConfigSecret }}
             secretName: {{ .Values.kubecostModel.federatedStorageConfigSecret }}
+            {{- else }}
+            secretName: federated-store
+            {{- end }}
         {{- end }}
-        {{- if .Values.kubecostProductConfigs.cloudIntegrationSecret }}
+        {{- if (.Values.kubecostProductConfigs).cloudIntegrationSecret }}
         - name: cloud-integration
           secret:
             secretName: {{ .Values.kubecostProductConfigs.cloudIntegrationSecret }}
             items:
               - key: cloud-integration.json
                 path: cloud-integration.json
-        {{- else }}
-        {{- fail "Cloud Cost requires configuration secret" }}
+        {{- else if or (.Values.kubecostProductConfigs).cloudIntegrationJSON ((.Values.kubecostProductConfigs).athenaProjectID) }}
+        - name: cloud-integration
+          secret:
+            secretName: cloud-integration
+            items:
+              - key: cloud-integration.json
+                path: cloud-integration.json
         {{- end }}
-      containers:
-        - name: cloud-cost
-          {{- if .Values.kubecostModel }}
-          {{- if .Values.kubecostModel.openSourceOnly }}
-          {{- fail "Kubecost Aggregator cannot be used with open source only" }}
-          {{- else if .Values.kubecostAggregator.fullImageName }}
-          image: {{ .Values.kubecostAggregator.fullImageName }}
-          {{- else if .Values.kubecostModel.fullImageName }}
-          image: {{ .Values.kubecostModel.fullImageName }}
-          {{- else if .Values.imageVersion }}
-          image: {{ .Values.kubecostModel.image }}:{{ .Values.imageVersion }}
-          {{- else }}
-          image: {{ .Values.kubecostModel.image }}:prod-{{ $.Chart.AppVersion }}
-          {{ end }}
-          {{- else }}
-          image: gcr.io/kubecost1/cost-model:prod-{{ $.Chart.AppVersion }}
-          {{ end }}
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 9005
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 200
-          imagePullPolicy: Always
-          args: ["cloud-cost"]
-          ports:
-            - name: tcp-api
-              containerPort: 9005
-              protocol: TCP
-          resources:
-            {{- toYaml .Values.kubecostAggregator.cloudCost.resources | nindent 12 }}
-          volumeMounts:
-          {{- if .Values.kubecostModel.federatedStorageConfigSecret }}
-            - name: federated-storage-config
-              mountPath: /var/configs/etl/federated
-              readOnly: true
-          {{- end }}
-          {{- if .Values.kubecostModel.etlBucketConfigSecret }}
-            - name: etl-bucket-config
-              mountPath: /var/configs/etl
-              readOnly: true
-          {{- end }}
-          {{- if .Values.kubecostProductConfigs.cloudIntegrationSecret }}
-            - name: cloud-integration
-              mountPath: /var/configs/cloud-integration
-          {{- end }}
-          env:
-            - name: CONFIG_PATH
-              value: /var/configs/
-            {{- if .Values.kubecostModel.etlBucketConfigSecret }}
-            - name: ETL_BUCKET_CONFIG
-              value: "/var/configs/etl/object-store.yaml"
-            {{- end}}
-            {{- if .Values.kubecostModel.federatedStorageConfigSecret }}
-            - name: FEDERATED_STORE_CONFIG
-              value: "/var/configs/etl/federated/federated-store.yaml"
-            - name: FEDERATED_CLUSTER
-              value: "true"
-            {{- end}}
-            - name: CLOUD_COST_REFRESH_RATE_HOURS
-              value: {{ .Values.kubecostAggregator.cloudCost.refreshRateHours | default  6 | quote }}
-            - name: CLOUD_COST_QUERY_WINDOW_DAYS
-              value: {{ .Values.kubecostAggregator.cloudCost.queryWindowDays  | default  7 | quote }}
-            - name: CLOUD_COST_RUN_WINDOW_DAYS
-              value: {{ .Values.kubecostAggregator.cloudCost.runWindowDays | default 3 | quote }}
-
-            {{- range $key, $value := .Values.kubecostAggregator.cloudCost.env }}
-            - name: {{ $key | quote }}
-              value: {{ $value | quote }}
+        {{/* Despite the name, this is not persistent-configs.
+            The name is for compatibility with single-pod install.
+            All data stored here is ephemeral, and does not require persistence. */}}
+        - name: persistent-configs
+          emptyDir: {}
+        {{- if .Values.kubecostModel.plugins.enabled  }}
+        {{- if .Values.kubecostModel.plugins.install.enabled}}
+        - name: install-script
+          configMap:
+            name: {{ template "cost-analyzer.fullname" . }}-install-plugins
+        {{- end }}
+        - name: plugins-dir
+          emptyDir: {}
+        {{- if and (not .Values.kubecostModel.plugins.existingCustomSecret.enabled) .Values.kubecostModel.plugins.secretName }}
+        - name: plugins-config
+          secret:
+            secretName: {{ .Values.kubecostModel.plugins.secretName }}
+            items:
+             {{- range $key, $config := .Values.kubecostModel.plugins.enabledPlugins }}
+              - key: {{ $config }}_config.json
+                path: {{ $config }}_config.json
             {{- end }}
-
-
+        {{- end }}
+        {{- if .Values.kubecostModel.plugins.existingCustomSecret.enabled }}
+        - name: plugins-config
+          secret:
+            secretName: {{ .Values.kubecostModel.plugins.existingCustomSecret.name }}
+            items:
+            {{- range $key, $config := .Values.kubecostModel.plugins.enabledPlugins }}
+              - key: {{ $config }}_config.json
+                path: {{ $config }}_config.json
+            {{- end }}
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.global.updateCaTrust.enabled }}
+        - name: ca-certs-secret
+          {{- if .Values.global.updateCaTrust.caCertsSecret }}
+          secret:
+            defaultMode: 420
+            secretName: {{ .Values.global.updateCaTrust.caCertsSecret }}
+          {{- else }}
+          configMap:
+            name: {{ .Values.global.updateCaTrust.caCertsConfig }}
+          {{- end }}
+        - name: ssl-path
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.kubecostAggregator.cloudCost.extraVolumes }}
+        {{- toYaml .Values.kubecostAggregator.cloudCost.extraVolumes | nindent 8 }}
+        {{- end }}
+      initContainers:
+      {{- if (and .Values.kubecostModel.plugins.enabled .Values.kubecostModel.plugins.install.enabled )}}
+      - name: plugin-installer
+        image: {{ .Values.kubecostModel.plugins.install.fullImageName }}
+        command: ["sh", "/install/install_plugins.sh"]
+        {{- with .Values.kubecostModel.plugins.install.securityContext }}
+        securityContext: {{- toYaml . | nindent 12 }}
+        {{- end }}
+        volumeMounts:
+          - name: install-script
+            mountPath: /install
+          - name: plugins-dir
+            mountPath: {{ .Values.kubecostModel.plugins.folder }}
+      {{- end }}
+      {{- if .Values.global.updateCaTrust.enabled }}
+      - name: update-ca-trust
+        image: {{ include "cost-model.image" . | trim | quote}}
+        {{- if .Values.kubecostModel.imagePullPolicy }}
+        imagePullPolicy: {{ .Values.kubecostModel.imagePullPolicy }}
+        {{- else }}
+        imagePullPolicy: Always
+        {{- end }}
+        {{- with .Values.global.updateCaTrust.securityContext }}
+        securityContext: {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.global.updateCaTrust.resources }}
+        resources:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        command:
+          - 'sh'
+          - '-c'
+          - >
+            mkdir -p /etc/pki/ca-trust/extracted/{edk2,java,openssl,pem};
+            /usr/bin/update-ca-trust extract;
+        volumeMounts:
+          - name: ca-certs-secret
+            mountPath: {{ .Values.global.updateCaTrust.caCertsMountPath | quote }}
+          - name: ssl-path
+            mountPath: "/etc/pki/ca-trust/extracted"
+            readOnly: false
+      {{- end}}
+      containers:
+        {{- include "aggregator.cloudCost.containerTemplate" . | nindent 8 }}
     {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
-      {{ toYaml .Values.imagePullSecrets | indent 2 }}
+      {{- range $.Values.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
     {{- end }}
       {{- if .Values.kubecostAggregator.priority }}
       {{- if .Values.kubecostAggregator.priority.enabled }}

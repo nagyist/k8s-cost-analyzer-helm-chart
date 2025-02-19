@@ -1,15 +1,14 @@
-{{- if .Values.kubecostAggregator.cloudCost.enabled }}
-
+{{- if not (eq (include "aggregator.deployMethod" .) "disabled") -}}
 kind: Service
 apiVersion: v1
 metadata:
   name: {{ template "cloudCost.serviceName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "cloudCost.commonLabels" . | nindent 4 }}
+    {{- include "cloudCost.commonLabels" . | nindent 4 }}
 spec:
   selector:
-{{ include "cloudCost.selectorLabels" . | nindent 4 }}
+    {{- include "cloudCost.selectorLabels" . | nindent 4 }}
   type: "ClusterIP"
   ports:
     - name: tcp-api

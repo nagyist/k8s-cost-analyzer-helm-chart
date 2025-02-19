@@ -1,14 +1,13 @@
 {{- if .Values.persistentVolume -}}
 {{- if not .Values.persistentVolume.existingClaim -}}
 {{- if .Values.persistentVolume.enabled -}}
-{{- if not (and .Values.kubecostDeployment.statefulSet.enabled .Values.kubecostDeployment.leaderFollower.enabled) -}}
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: {{ template "cost-analyzer.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ include "cost-analyzer.commonLabels" . | nindent 4 }}
+    {{- include "cost-analyzer.commonLabels" . | nindent 4 }}
     {{- with .Values.persistentVolume.labels }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -29,7 +28,6 @@ spec:
     {{- else }}
       storage: 32.0Gi
     {{ end }}
-{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
